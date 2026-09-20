@@ -1,0 +1,51 @@
+@startuml c4-2-container
+' C4 level 2 — containers.
+'
+' A note on honesty: videoedit is one Node process, so there is only one
+' application container to draw. What earns this diagram its place is not the
+' code boxes but the stores — the inbox/outbox pairing that is the whole
+' bookkeeping, the work directory that carries each run's metadata, and the
+' brand folder that is the swappable part. The stages are components, and they
+' appear at level 3.
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title videoedit — Level 2: Containers
+
+Person(producer, "Lesson producer", "Records the take, writes the sidecar")
+
+System_Boundary(videoedit, "videoedit") {
+  Container(cli, "videoedit CLI", "Node.js 18+, single process", "src/index.mjs and src/run.mjs. Parses flags, keeps the inbox bookkeeping, batches or watches, and runs every stage of a take in-process: letterbox, analyse, narrate, plan, tighten, render, sound")
+
+  Container(tools, "Measurement tools", "Node.js 18+, separate entry points", "tools/inspect.mjs measures a finished lesson — card geometry, loudness, the level where nobody speaks, phrase spread, where every glyph of the opening landed. tools/extract-bed.mjs recovers the music bed from a finished lesson")
+
+  ContainerDb(inbox, "Inbox", "Filesystem — in/ ($VIDEOEDIT_IN)", "Takes named '… Source.mp4', each optionally beside a sidecar '<take>.json' (or a folder-wide video.json) carrying copy, sections and any config override")
+  ContainerDb(outbox, "Outbox", "Filesystem — out/ ($VIDEOEDIT_OUT)", "Finished lessons named '… Output.mp4'. A take that already has an output is considered done, which is what makes re-running safe")
+  ContainerDb(work, "Work area", "Filesystem — .work/, disposable", "The de-letterboxed take, body.mkv, picture.mkv, the whisper transcript, and <take>.plan.json — the run's own record of cuts, zoom regions, sections, timeline and house-rule verdicts, written on every run")
+  ContainerDb(cache, "Speech cache", "Filesystem — .cache/tts", "Rendered speech keyed by provider, voice, settings and text. Deliberately outside .work/, which is cleared between runs: deleting this costs money, not correctness")
+  ContainerDb(brand, "Brand kit", "Filesystem — brand/ ($VIDEOEDIT_BRAND)", "StyleGuide.txt, the typefaces, the logo lockups, four transition cues and the music bed. The swappable part: a second brand is a second folder with the same shape")
+  ContainerDb(models, "Speech model", "Filesystem — models/ ($VIDEOEDIT_MODELS)", "ggml-base.en.bin, downloaded once, read by ffmpeg's whisper filter")
+  ContainerDb(reference, "Reference lessons", "Filesystem — reference/", "The hand-finished lessons the look was measured against. Read by the tools, never by the pipeline")
+}
+
+System_Ext(ffmpeg, "FFmpeg / FFprobe", "Local binaries")
+System_Ext(tts, "ElevenLabs / OpenAI", "Text-to-speech over HTTPS")
+
+Rel(producer, inbox, "Drops the take and its sidecar", "filesystem")
+Rel(producer, cli, "npm start / --watch / --analyze-only, plus flags", "terminal")
+Rel(producer, outbox, "Watches the finished lesson", "filesystem")
+
+Rel(cli, inbox, "Lists pending takes; waits for a file to stop growing before reading it", "read")
+Rel(cli, work, "Writes intermediates, the transcript and the plan report", "read/write")
+Rel(cli, outbox, "Writes the finished lesson", "write")
+Rel(cli, brand, "Style guide, fonts, logo art, cues, bed", "read")
+Rel(cli, models, "Whisper model path, handed to ffmpeg", "read")
+Rel(cli, cache, "Looks up a line before billing for it; stores what it renders", "read/write")
+Rel(cli, ffmpeg, "Spawns per stage", "child process")
+Rel(cli, tts, "One request per line, under --narrate only", "HTTPS")
+
+Rel(tools, reference, "Measures the hand-finished lesson", "read")
+Rel(tools, outbox, "Measures the finished lesson against it", "read")
+Rel(tools, brand, "extract-bed writes the recovered pad here", "write")
+Rel(tools, ffmpeg, "Spawns for probing, filtering and FFT work", "child process")
+
+@enduml

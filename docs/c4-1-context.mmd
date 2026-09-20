@@ -1,0 +1,14 @@
+C4Context
+    title videoedit — Level 1: System context
+
+    UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+
+    Person(producer, "Lesson producer", "Records the take, writes the sidecar")
+    System(videoedit, "videoedit", "Raw recording in, branded lesson out")
+    System_Ext(ffmpeg, "FFmpeg / FFprobe", "All media work, and whisper")
+    System_Ext(tts, "ElevenLabs / OpenAI", "Speech, only under --narrate")
+
+    Rel(producer, videoedit, "Take + sidecar in in/", "filesystem")
+    Rel(videoedit, producer, "Lesson + plan report", "filesystem")
+    Rel(videoedit, ffmpeg, "Frames in, measurements out", "spawn")
+    Rel(videoedit, tts, "A request per line, cached", "HTTPS")

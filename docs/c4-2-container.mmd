@@ -1,0 +1,37 @@
+C4Container
+    title videoedit — Level 2: Containers
+
+    UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+
+    Person(producer, "Lesson producer", "Records, writes the sidecar")
+
+    System_Boundary(videoedit, "videoedit") {
+        Container(cli, "videoedit CLI", "Node.js 18+", "Every stage, one process")
+        Container(tools, "Measurement tools", "Node.js 18+", "Measures a finished lesson")
+        ContainerDb(inbox, "Inbox", "in/", "Takes and their sidecars")
+        ContainerDb(outbox, "Outbox", "out/", "Its presence means done")
+        ContainerDb(work, "Work area", ".work/", "Transcript and plan report")
+        ContainerDb(cache, "Speech cache", ".cache/tts", "Keyed by voice and text")
+        ContainerDb(brand, "Brand kit", "brand/", "The look. Swappable")
+        ContainerDb(models, "Speech model", "models/", "For ffmpeg's whisper filter")
+        ContainerDb(reference, "Reference lessons", "reference/", "What the look was measured on")
+    }
+
+    System_Ext(ffmpeg, "FFmpeg / FFprobe", "Local binaries")
+    System_Ext(tts, "ElevenLabs / OpenAI", "Speech over HTTPS")
+
+    Rel(producer, cli, "npm start", "terminal")
+    Rel(producer, inbox, "Drops the take", "filesystem")
+    Rel(producer, outbox, "Collects the lesson", "filesystem")
+    Rel(cli, inbox, "What is pending", "read")
+    Rel(cli, work, "Intermediates, plan", "read/write")
+    Rel(cli, outbox, "The lesson", "write")
+    Rel(cli, brand, "The look", "read")
+    Rel(cli, models, "Model path", "read")
+    Rel(cli, cache, "Before billing", "read/write")
+    Rel(cli, ffmpeg, "Per stage", "spawn")
+    Rel(cli, tts, "Per line", "HTTPS")
+    Rel(tools, reference, "Measures", "read")
+    Rel(tools, outbox, "Compares", "read")
+    Rel(tools, brand, "Recovered pad", "write")
+    Rel(tools, ffmpeg, "Probe, filter, FFT", "spawn")

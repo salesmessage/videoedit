@@ -1,0 +1,4 @@
+Salesmsg Blue: #1d94ef
+Salesmsg Green CTA Button: #13cb6e
+Headlines: Neue Einstellung
+Body Text:Inter

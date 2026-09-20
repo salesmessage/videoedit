@@ -1,0 +1,56 @@
+@startuml c4-4-component-render
+' C4 level 3 — inside the render stage, which is where nearly all the runtime
+' goes (roughly 8-11 fps, dominated by compositing rather than the encode) and
+' where every measured number about the look is spent.
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title videoedit — Level 3: Inside the render stage
+
+Container_Boundary(cli, "videoedit CLI (Node.js)") {
+
+  Component(orch, "Take orchestrator", "src/run.mjs", "Registers the brand's fonts and loads the logo art once, then hands the frame loop a timeline, a zoom track, the cut plan and the sections")
+
+  Component(loop, "Frame loop", "src/stages/render.mjs", "buildTimeline decides where each act starts and ends in output seconds. Then one pass paints every frame of the opening, title card, matted recording, list sections and outro onto a single continuous timeline, and pipes raw RGBA to the encoder. A blank frame is tested for in hand rather than against spans mapped from analysis, so the hold cannot be off by a frame")
+
+  Component(bg, "Background field", "src/lib/background.mjs", "The near-white field with soft blue blooms drifting through it, sampled off the examples and never darker than about #c1d6f8. Repainted every sixth frame, because it drifts slowly enough that nobody can see the difference")
+
+  Component(cards, "Cards & type", "src/lib/cards.mjs", "layoutTitle and layoutList measure and wrap; drawOpening, drawTitle, drawList and drawClosing paint. splitHighlights is what sets the chosen phrases in the brand blue. The easing curves, including a settle that matches the example's own overshoot")
+
+  Component(brand, "Brand kit loader", "src/lib/brand.mjs", "Reads StyleGuide.txt for the colour and type, registers the brand's typefaces with the canvas, resolves a family and weight to an actual face, loads the logo lockups, and does the colour maths — tint, shade, mix, rgba")
+
+  Component(ffgw, "FFmpeg gateway", "src/lib/ffmpeg.mjs", "stream() — the long-lived encoder process the loop writes frames into")
+
+  Component(config, "Config", "src/lib/config.mjs", "Every number the look depends on: the 200px mat and its 12px pale ring, the title card's 134px headline squeezed to 0.87 horizontally, the list window at x982 w857, the four cue peaks. All overridable per video")
+}
+
+Component_Ext(canvas, "@napi-rs/canvas", "Native library, in-process", "The 2D context every frame is painted into, and the font registry the brand's typefaces are loaded into")
+
+ContainerDb(brandfs, "brand/", "Filesystem", "StyleGuide.txt, fonts/, logo/")
+ContainerDb(work, ".work/picture.mkv", "Filesystem", "The painted picture, before sound")
+System_Ext(ffmpeg, "FFmpeg", "x264 encode")
+
+Rel(orch, brand, "Once per run: style guide, fonts, logo art", "registerBrandFonts / loadArt")
+Rel(brand, brandfs, "", "read")
+Rel(brand, canvas, "Registers the typefaces", "GlobalFonts")
+Rel(orch, loop, "Timeline, zoom track, cut plan, sections", "render()")
+Rel(loop, config, "Geometry, timing, colour", "")
+Rel(loop, bg, "The field under everything", "createBackground()")
+Rel(loop, cards, "The opening, the title, the list, the closing", "draw* / layout*")
+Rel(cards, brand, "Colour maths and the resolved faces", "rgba / resolveFont")
+Rel(bg, brand, "Tints from the brand blue", "tint / rgba")
+Rel(loop, canvas, "Paints each frame", "2D context")
+Rel(loop, ffgw, "Raw RGBA frames, one write per frame, with backpressure", "stdin pipe")
+Rel(ffgw, ffmpeg, "", "spawn")
+Rel(ffmpeg, work, "Encodes the picture", "write")
+
+note bottom of loop
+  Two things this diagram is the reason for:
+  the zoom is eased out as a list card moves in, so
+  nothing is planned underneath one; and the recording
+  inside a list card is cropped at the same
+  magnification rather than shrunk, anchored on
+  focusX, which is why the interface stays readable
+  at a third of the width.
+end note
+
+@enduml

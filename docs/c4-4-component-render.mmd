@@ -1,0 +1,33 @@
+C4Component
+    title videoedit — Level 3: Inside the render stage
+
+    UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+
+    Container_Boundary(cli, "videoedit CLI (Node.js)") {
+        Component(orch, "Take orchestrator", "run.mjs", "Fonts and art, once per run")
+        Component(loop, "Frame loop", "stages/render.mjs", "Every act, one timeline")
+        Component(bg, "Background field", "lib/background.mjs", "Blue blooms on near-white")
+        Component(cards, "Cards & type", "lib/cards.mjs", "Layout, paint, easing, blue")
+        Component(brand, "Brand kit loader", "lib/brand.mjs", "Faces, art, colour maths")
+        Component(config, "Config", "lib/config.mjs", "Every measured number")
+        Component(ffgw, "FFmpeg gateway", "lib/ffmpeg.mjs", "The encoder process")
+    }
+
+    Component_Ext(canvas, "@napi-rs/canvas", "Native, in-process", "Context and font registry")
+    ContainerDb(brandfs, "brand/", "Filesystem", "Style guide, fonts, logo")
+    ContainerDb(work, "picture.mkv", "Filesystem", "The picture, before sound")
+    System_Ext(ffmpeg, "FFmpeg", "x264")
+
+    Rel(orch, brand, "Once per run", "loadArt()")
+    Rel(brand, brandfs, "read", "")
+    Rel(brand, canvas, "Registers the faces", "")
+    Rel(orch, loop, "Timeline, zoom, cuts", "render()")
+    Rel(loop, config, "Geometry and timing", "")
+    Rel(loop, bg, "The field beneath", "")
+    Rel(loop, cards, "Opening, title, list", "")
+    Rel(cards, brand, "Colour and faces", "")
+    Rel(bg, brand, "Tints from the blue", "")
+    Rel(loop, canvas, "Paints each frame", "")
+    Rel(loop, ffgw, "One write per frame", "stdin")
+    Rel(ffgw, ffmpeg, "spawn", "")
+    Rel(ffmpeg, work, "Encodes", "write")

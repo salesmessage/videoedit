@@ -1,0 +1,19 @@
+{
+  "name": "videoedit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Drop a raw screen recording in in/, get a branded lesson in out/. Dead air tightened, automatic zoom, animated opening, title card, list sections, outro, optional text-to-speech narration.",
+  "main": "src/index.mjs",
+  "bin": { "videoedit": "src/index.mjs" },
+  "scripts": {
+    "start": "node src/index.mjs",
+    "watch": "node src/index.mjs --watch",
+    "plan": "node src/index.mjs --analyze-only",
+    "inspect": "node tools/inspect.mjs",
+    "extract-bed": "node tools/extract-bed.mjs"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.60"
+  }
+}

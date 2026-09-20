@@ -1,0 +1,82 @@
+@startuml c4-3-component-pipeline
+' C4 level 3 — components of the videoedit CLI container, following one take.
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title videoedit — Level 3: Components of the CLI container (one take, end to end)
+
+Person(producer, "Lesson producer")
+
+Container_Boundary(cli, "videoedit CLI (Node.js)") {
+
+  Component(entry, "CLI & inbox", "src/index.mjs", "Flags to a nested override object; the inbox/outbox pairing that decides what is pending; the batch loop; the watcher, which waits for a file's size to stop changing so a copy in progress is never read half-written. Exits non-zero when a take fails, so rules.strict can be trusted by a caller")
+
+  Component(orch, "Take orchestrator", "src/run.mjs", "Runs the stages in order and owns what passes between them. Keeps section times on both the take's clock and the cut body's, because the renderer wants body time while the zoom planner reads motion samples indexed against the source")
+
+  Component(config, "Config resolver", "src/lib/config.mjs", "DEFAULTS <- sidecar JSON <- CLI overrides, merged by key path, so any number in the config can be overridden per video. Derives badge and headline from the file name as a starting point, leaving proper nouns alone")
+
+  Component(rules, "House rules", "src/lib/rules.mjs", "Conditions on the edit rather than numbers describing the look: every lesson carries at least one list section, and every section's crop anchor is reported. Checked at plan time, before the encode, where the remedy is one line in a sidecar. Verdicts go into the plan report; rules.strict stops the run")
+
+  Component(letterbox, "Letterbox trim", "src/stages/letterbox.mjs", "Black bars baked into the take, taken off before anything measures the frame. Samples nine frames and keeps only the crop every sample agrees on, so a lesson that opens on a dark splash does not have its own content cropped away. Re-encodes rather than threading a crop through each stage")
+
+  Component(analyse, "Analyse", "src/stages/analyse.mjs", "audioTrack: the take's own noise floor and speech level, and a silence gate placed a third of the way between them rather than at a constant. motionTrack: per-sample energy, centroid, spread and frame detail. transcribe: whisper through ffmpeg's filter")
+
+  Component(lists, "List detector", "src/lib/lists.mjs", "Finds enumerations in the transcript, deliberately narrowly: a counted lead-in or the 'there is A, B and C' construction and nothing else, because a false positive is a full-screen graphic asserting a list nobody gave. Navigation paths are rejected. A hand-written section suppresses any drafted one it overlaps")
+
+  Component(narrate, "Narrate (optional)", "src/stages/narrate.mjs", "Re-voices the take under --narrate. Splits chunks into sentences and interpolates a time per character, because whisper breaks on breath and not on grammar. Each line may only be delayed, never brought forward, and is compressed at most 1.15x. Proves the take's own audio never reached the mix by measuring the spans between placed lines")
+
+  Component(plan, "Plan", "src/stages/plan.mjs", "cutPlan and timeMapper: which stretches survive and the mapping from take time to body time. zoomPlan: regions gated on the take's own median activity, scored on how much moved and how tightly it clustered, bridged across five seconds of stillness, capped by a coverage budget, and blanked under any list section")
+
+  Component(tighten, "Tighten", "src/stages/tighten.mjs", "Cuts picture and sound together in one filtergraph, so they cannot drift apart")
+
+  Component(render, "Render", "src/stages/render.mjs", "buildTimeline, then one frame loop that paints the opening, the title card, the matted recording, the list sections and the outro onto a single continuous timeline. See the level-3 render diagram")
+
+  Component(sound, "Sound", "src/stages/sound.mjs", "High-pass below the voice, spectral denoise tied to the take's own floor, the silent spans ducked by name rather than by level, two-pass loudnorm, the four cues placed on the timeline, the bed underneath, mux — then verifies the duration it produced")
+
+  Component(ffgw, "FFmpeg gateway", "src/lib/ffmpeg.mjs", "run, detect, stream, probe, durationOf. The one place a child process is spawned and the one place its output is parsed")
+
+  Component(ttsc, "TTS client", "src/lib/tts.mjs", "Picks ElevenLabs or OpenAI from whichever key is set; renders a line and caches it by provider, voice, settings and text, so a fix cannot come back from the cache with the mishearing still in it")
+
+  Component(paths, "Paths & env", "src/lib/paths.mjs, src/lib/env.mjs", "Where everything lives, the Source/Output suffix pairing, and the .env reader — a shell export always wins")
+}
+
+ContainerDb(inbox, "in/", "Filesystem", "Takes and sidecars")
+ContainerDb(work, "work/", "Filesystem", "Intermediates, transcript, plan report")
+ContainerDb(outbox, "out/", "Filesystem", "Finished lessons")
+ContainerDb(cache, ".cache/tts", "Filesystem", "Rendered speech")
+System_Ext(ffmpeg, "FFmpeg / FFprobe", "Local binaries")
+System_Ext(ttsapi, "ElevenLabs / OpenAI", "HTTPS")
+
+Rel(producer, entry, "npm start, flags", "terminal")
+Rel(entry, inbox, "What is pending", "read")
+Rel(entry, orch, "One take at a time", "processTake()")
+Rel(orch, config, "Resolve the config and the copy", "resolveConfig()")
+Rel(config, inbox, "Reads the sidecar beside the take", "read")
+
+Rel(orch, letterbox, "1. Trim the bars first", "trimLetterbox()")
+Rel(orch, analyse, "2. Where the speech, the motion and the blanks are", "audioTrack / motionTrack / transcribe")
+Rel(analyse, work, "Writes the transcript", "write")
+Rel(orch, narrate, "3. Only under --narrate", "narrate()")
+Rel(narrate, ttsc, "Speak each corrected line", "speak()")
+Rel(ttsc, cache, "Look up, then store", "read/write")
+Rel(ttsc, ttsapi, "Render a line", "HTTPS")
+Rel(orch, lists, "4. Draft sections, merge the hand-written ones", "detectSections / mergeSections")
+Rel(orch, plan, "5. Cuts, the time map and the zoom regions", "cutPlan / zoomPlan")
+Rel(orch, rules, "6. Hold the plan against the rules, before the encode", "reportRules()")
+Rel(rules, work, "Verdicts into <take>.plan.json", "write")
+Rel(orch, tighten, "7. Cut picture and sound as one", "applyCuts()")
+Rel(orch, render, "8. Paint every frame", "render()")
+Rel(orch, sound, "9. Clean, level, place the cues and the bed, mux", "buildAudio / verify")
+Rel(sound, outbox, "The finished lesson", "write")
+
+Rel(letterbox, ffgw, "", "spawn")
+Rel(analyse, ffgw, "", "spawn")
+Rel(narrate, ffgw, "", "spawn")
+Rel(tighten, ffgw, "", "spawn")
+Rel(render, ffgw, "", "spawn")
+Rel(sound, ffgw, "", "spawn")
+Rel(ffgw, ffmpeg, "Child process, stdio pipes", "spawn")
+
+Rel(orch, work, "Intermediates", "read/write")
+Rel(orch, paths, "Where things live", "")
+
+@enduml

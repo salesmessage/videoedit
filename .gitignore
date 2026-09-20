@@ -1,0 +1,19 @@
+node_modules/
+
+# intermediates — safe to delete at any time
+.work/
+
+# rendered speech, keyed by content. Deleting it costs money, not correctness.
+.cache/
+
+# speech model, downloaded on demand (see the README)
+models/*.bin
+
+# credentials
+.env
+
+# takes and results
+in/*
+out/*
+!in/.gitkeep
+!out/.gitkeep

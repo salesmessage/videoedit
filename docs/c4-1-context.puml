@@ -1,0 +1,32 @@
+@startuml c4-1-context
+' C4 level 1 — system context for videoedit.
+'
+' Offline alternative to the include below, if PlantUML's bundled stdlib is
+' available:  !include <C4/C4_Context>
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title videoedit — Level 1: System context
+
+Person(producer, "Lesson producer", "Records the screen, names the take '… Source.mp4', and supplies the editorial copy — badge, headline, blue phrases, list sections — in a sidecar JSON")
+
+System(videoedit, "videoedit", "Turns a raw screen recording into a finished branded lesson: dead air tightened, the recording matted on the brand field, automatic zoom, animated opening, title card, list sections, outro, cues, music bed and levelled narration")
+
+System_Ext(ffmpeg, "FFmpeg / FFprobe", "Local binaries on PATH, or $FFMPEG. Every decode, filtergraph, measurement, encode and mux — and the whisper transcription, through ffmpeg's own filter rather than a separate binary. A build with --enable-whisper is needed for list sections")
+
+System_Ext(tts, "ElevenLabs / OpenAI", "Text-to-speech over HTTPS. Only reached under --narrate, which is off by default because it bills a third party and discards the recorded performance")
+
+Rel(producer, videoedit, "Drops a take in in/ and a sidecar beside it", "filesystem")
+Rel(videoedit, producer, "Writes '… Output.mp4', and a plan report recording what was decided and which house rules it was held to", "filesystem + terminal")
+Rel(videoedit, ffmpeg, "Spawns per stage; pipes raw RGBA frames in, reads PCM, JSON and measurements out", "child process, stdio pipes")
+Rel(videoedit, tts, "One request per narration line, keyed and cached by provider, voice, settings and text", "HTTPS/JSON")
+
+note right of videoedit
+  The look is not a matter of taste here: it was
+  measured off two hand-finished lessons, and the
+  numbers it was fitted to live in src/lib/config.mjs.
+  Editorial conditions on the edit — chiefly that
+  every lesson carries a list section — live in
+  src/lib/rules.mjs and are checked before the encode.
+end note
+
+@enduml
